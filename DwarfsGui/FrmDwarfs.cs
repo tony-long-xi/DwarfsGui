@@ -1,4 +1,4 @@
-﻿using DwarfsGui.Models;
+using DwarfsGui.Models;
 using DwarfsGui.Services;
 using Microsoft.VisualBasic.Logging;
 using System;
@@ -151,6 +151,15 @@ namespace DwarfsGui
             }
         }
 
+        private void tabControl_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            // 切换到挂载镜像 tab 时刷新已挂载列表
+            if (tabControl.SelectedTab == tabMount)
+            {
+                RefreshMountedList();
+            }
+        }
+
         private void btnUnmount_Click(object sender, EventArgs e)
         {
             if (lvMounted.SelectedItems.Count == 0)
@@ -164,7 +173,11 @@ namespace DwarfsGui
                 var mi = item.Tag as MountInfo;
                 if (mi != null)
                 {
-                    _dwarfsService.Unmount(mi.MountPoint);
+                    // 如果有 PID，直接通过 PID 卸载（支持外部进程）
+                    if (mi.ProcessId > 0)
+                        _dwarfsService.UnmountByPid(mi.ProcessId);
+                    else
+                        _dwarfsService.Unmount(mi.MountPoint);
                     _dwarfsService.MountedImages.Remove(mi);
                     Log($"已卸载: {mi.MountPoint}");
                 }
@@ -177,9 +190,21 @@ namespace DwarfsGui
             if (lvMounted.SelectedItems.Count > 0)
             {
                 var mi = lvMounted.SelectedItems[0].Tag as MountInfo;
-                if (mi != null && Directory.Exists(mi.MountPoint))
+                if (mi != null && !string.IsNullOrEmpty(mi.MountPoint))
                 {
-                    Process.Start("explorer.exe", mi.MountPoint);
+                    var mountPoint = mi.MountPoint;
+                    if (Directory.Exists(mountPoint))
+                    {
+                        Process.Start(new ProcessStartInfo(mountPoint) { UseShellExecute = true });
+                    }
+                    else
+                    {
+                        MessageBox.Show($"挂载点目录不存在: {mountPoint}", "提示", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    }
+                }
+                else
+                {
+                    MessageBox.Show("该挂载项没有有效的挂载点路径。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 }
             }
         }
@@ -277,13 +302,45 @@ namespace DwarfsGui
         private void RefreshMountedList()
         {
             lvMounted.Items.Clear();
+
+            // 合并 WinFsp 中已挂载的镜像和当前会话挂载的镜像
+            var allMounted = new List<MountInfo>();
+
+            // 从 WinFsp 获取所有已挂载的 dwarfs 镜像
+            try
+            {
+                var winfspMounted = _dwarfsService.GetWinFspMountedImages();
+                foreach (var mi in winfspMounted)
+                {
+                    // 检查是否已经在当前会话的挂载列表中
+                    if (!allMounted.Any(m => m.MountPoint == mi.MountPoint && m.ImagePath == mi.ImagePath))
+                        allMounted.Add(mi);
+                }
+            }
+            catch (Exception ex)
+            {
+                Log($"获取 WinFsp 挂载信息失败: {ex.Message}");
+            }
+
+            // 添加当前会话管理的挂载（可能已经在 WinFsp 列表中，去重）
             foreach (var mi in _dwarfsService.MountedImages)
             {
+                if (!allMounted.Any(m => m.MountPoint == mi.MountPoint && m.ImagePath == mi.ImagePath))
+                    allMounted.Add(mi);
+            }
+
+            foreach (var mi in allMounted)
+            {
                 var item = new ListViewItem(mi.ImagePath);
-                item.SubItems.Add(mi.MountPoint);
+                item.SubItems.Add(string.IsNullOrEmpty(mi.MountPoint) ? "(自动)" : mi.MountPoint);
                 item.SubItems.Add(mi.MountTime.ToString("yyyy-MM-dd HH:mm:ss"));
                 item.Tag = mi;
                 lvMounted.Items.Add(item);
+            }
+
+            if (allMounted.Count == 0)
+            {
+                Log("当前没有已挂载的镜像。");
             }
         }
 

@@ -1,4 +1,4 @@
-﻿namespace DwarfsGui
+namespace DwarfsGui
 {
     partial class FrmDwarfs
     {
@@ -30,6 +30,9 @@
         {
             tabControl = new TabControl();
             tabCreate = new TabPage();
+            btnBrowseWinFsp = new Button();
+            textBox1 = new TextBox();
+            label14 = new Label();
             label1 = new Label();
             progressCreate = new ProgressBar();
             btnCreate = new Button();
@@ -112,9 +115,13 @@
             tabControl.SelectedIndex = 0;
             tabControl.Size = new Size(1048, 414);
             tabControl.TabIndex = 0;
+            tabControl.SelectedIndexChanged += tabControl_SelectedIndexChanged;
             // 
             // tabCreate
             // 
+            tabCreate.Controls.Add(btnBrowseWinFsp);
+            tabCreate.Controls.Add(textBox1);
+            tabCreate.Controls.Add(label14);
             tabCreate.Controls.Add(label1);
             tabCreate.Controls.Add(progressCreate);
             tabCreate.Controls.Add(btnCreate);
@@ -135,6 +142,32 @@
             tabCreate.TabIndex = 0;
             tabCreate.Text = "制作镜像";
             tabCreate.UseVisualStyleBackColor = true;
+            // 
+            // btnBrowseWinFsp
+            // 
+            btnBrowseWinFsp.Location = new Point(884, 244);
+            btnBrowseWinFsp.Name = "btnBrowseWinFsp";
+            btnBrowseWinFsp.Size = new Size(112, 34);
+            btnBrowseWinFsp.TabIndex = 15;
+            btnBrowseWinFsp.Text = "浏览...";
+            btnBrowseWinFsp.UseVisualStyleBackColor = true;
+            // 
+            // textBox1
+            // 
+            textBox1.Location = new Point(158, 246);
+            textBox1.Name = "textBox1";
+            textBox1.Size = new Size(697, 30);
+            textBox1.TabIndex = 14;
+            textBox1.Text = "C:\\Program Files (x86)\\WinFsp\\bin";
+            // 
+            // label14
+            // 
+            label14.AutoSize = true;
+            label14.Location = new Point(24, 249);
+            label14.Name = "label14";
+            label14.Size = new Size(110, 24);
+            label14.TabIndex = 13;
+            label14.Text = "WinFsp目录";
             // 
             // label1
             // 
@@ -776,5 +809,8 @@
         private Label label13;
         private Label lblContextMenuStatus;
         private ProgressBar progressMount;
+        private Button btnBrowseWinFsp;
+        private TextBox textBox1;
+        private Label label14;
     }
 }

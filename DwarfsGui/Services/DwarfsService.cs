@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Management;
 using System.Text;
 using DwarfsGui.Models;
 
@@ -154,6 +155,144 @@ public class DwarfsService
         return await RunCommandAsync(ExtractPath, args, onOutput, ct);
     }
 
+    public List<MountInfo> GetWinFspMountedImages()
+    {
+        var result = new List<MountInfo>();
+
+        // 通过 WMI 查询所有运行中的 dwarfs.exe 进程及其命令行
+        try
+        {
+            var searcher = new ManagementObjectSearcher(
+                "SELECT ProcessId, CommandLine, CreationDate FROM Win32_Process WHERE Name = 'dwarfs.exe'");
+            foreach (var obj in searcher.Get())
+            {
+                try
+                {
+                    var pid = Convert.ToInt32(obj["ProcessId"]);
+                    var cmdLine = obj["CommandLine"] as string ?? "";
+                    var creationDate = obj["CreationDate"];
+
+                    var (imagePath, mountPoint) = ParseMountCommandLine(cmdLine);
+                    if (string.IsNullOrEmpty(imagePath)) continue;
+
+                    // 如果是 --auto-mountpoint，从镜像路径推导挂载点
+                    if (string.IsNullOrEmpty(mountPoint) && cmdLine.Contains("--auto-mountpoint"))
+                    {
+                        mountPoint = DeriveAutoMountPoint(imagePath);
+                    }
+
+                    DateTime mountTime = DateTime.Now;
+                    try
+                    {
+                        if (creationDate != null)
+                            mountTime = ManagementDateTimeConverter.ToDateTime(creationDate.ToString());
+                    }
+                    catch { }
+
+                    result.Add(new MountInfo
+                    {
+                        ImagePath = imagePath,
+                        MountPoint = mountPoint ?? "",
+                        ProcessId = pid,
+                        MountTime = mountTime
+                    });
+                }
+                catch { }
+            }
+        }
+        catch { }
+
+        return result;
+    }
+
+    /// <summary>
+    /// 从镜像路径推导 --auto-mountpoint 模式下的挂载点
+    /// 例如: F:\dir\test.dwarfs → F:\dir\test
+    /// </summary>
+    private static string DeriveAutoMountPoint(string imagePath)
+    {
+        try
+        {
+            var dir = Path.GetDirectoryName(imagePath);
+            var name = Path.GetFileNameWithoutExtension(imagePath);
+            return Path.Combine(dir ?? "", name);
+        }
+        catch { return ""; }
+    }
+
+    private static (string ImagePath, string MountPoint) ParseMountCommandLine(string cmdLine)
+    {
+        var parts = SplitCommandLine(cmdLine);
+        string imagePath = "";
+        string mountPoint = "";
+        bool autoMountPoint = false;
+
+        // 第一个参数是 dwarfs.exe 本身，跳过
+        // 遍历剩余参数
+        for (int i = 1; i < parts.Count; i++)
+        {
+            var arg = parts[i].Trim('"');
+
+            if (arg == "--auto-mountpoint")
+            {
+                autoMountPoint = true;
+                continue;
+            }
+
+            if (arg.StartsWith("-"))
+                continue; // 跳过选项参数
+
+            // 第一个非选项参数是镜像路径
+            if (string.IsNullOrEmpty(imagePath))
+            {
+                imagePath = arg;
+            }
+            // 第二个非选项参数是挂载点
+            else if (string.IsNullOrEmpty(mountPoint))
+            {
+                mountPoint = arg;
+            }
+        }
+
+        if (autoMountPoint && string.IsNullOrEmpty(mountPoint))
+            mountPoint = DeriveAutoMountPoint(imagePath);
+
+        return (imagePath, mountPoint);
+    }
+
+    private static List<string> SplitCommandLine(string cmdLine)
+    {
+        var result = new List<string>();
+        var current = new StringBuilder();
+        bool inQuotes = false;
+
+        for (int i = 0; i < cmdLine.Length; i++)
+        {
+            var ch = cmdLine[i];
+            if (ch == '"')
+            {
+                inQuotes = !inQuotes;
+                current.Append(ch);
+            }
+            else if (ch == ' ' && !inQuotes)
+            {
+                if (current.Length > 0)
+                {
+                    result.Add(current.ToString());
+                    current.Clear();
+                }
+            }
+            else
+            {
+                current.Append(ch);
+            }
+        }
+        if (current.Length > 0)
+            result.Add(current.ToString());
+
+        return result;
+    }
+
     public void RegisterMount(string mountPoint, Process process)
     {
         _mountProcesses[mountPoint] = process;
@@ -161,6 +300,7 @@ public class DwarfsService
 
     public void Unmount(string mountPoint)
     {
+        // 先尝试通过本会话管理的进程卸载
         if (_mountProcesses.TryGetValue(mountPoint, out var process))
         {
             try
@@ -177,7 +317,36 @@ public class DwarfsService
                 process.Dispose();
                 _mountProcesses.Remove(mountPoint);
             }
+            return;
         }
+
+        // 如果本会话没有管理该挂载点，尝试通过 PID 杀掉外部 dwarfs 进程
+        var mounted = GetWinFspMountedImages()
+            .FirstOrDefault(m => m.MountPoint == mountPoint);
+        if (mounted != null && mounted.ProcessId > 0)
+        {
+            try
+            {
+                using var proc = Process.GetProcessById(mounted.ProcessId);
+                proc.Kill();
+                proc.WaitForExit(3000);
+            }
+            catch { }
+        }
+    }
+
+    /// <summary>
+    /// 通过 PID 卸载外部 dwarfs 进程
+    /// </summary>
+    public void UnmountByPid(int pid)
+    {
+        try
+        {
+            using var proc = Process.GetProcessById(pid);
+            proc.Kill();
+            proc.WaitForExit(3000);
+        }
+        catch { }
     }
 
     public void UnmountAll()
