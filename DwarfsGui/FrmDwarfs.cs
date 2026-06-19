@@ -441,6 +441,16 @@ namespace DwarfsGui
             BrowseFile(txtExtractInput, "Dwarfs 镜像|*.dwarfs|所有文件|*.*");
         }
 
+        private void linkLabel_LinkClicked(object sender, LinkLabelLinkClickedEventArgs e)
+        {
+            var link = sender as LinkLabel;
+            if (link != null)
+            {
+                Process.Start(new ProcessStartInfo(link.Text) { UseShellExecute = true });
+                link.LinkVisited = true;
+            }
+        }
+
         private void btnBrowseExtractOutput_Click(object sender, EventArgs e)
         {
             BrowseFolder(txtExtractOutput);

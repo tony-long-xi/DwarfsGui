@@ -818,6 +818,7 @@ namespace DwarfsGui
             linkLabel1.TabIndex = 6;
             linkLabel1.TabStop = true;
             linkLabel1.Text = "https://github.com/mhx/dwarfs";
+            linkLabel1.LinkClicked += linkLabel_LinkClicked;
             // 
             // linkLabel2
             // 
@@ -828,6 +829,7 @@ namespace DwarfsGui
             linkLabel2.TabIndex = 7;
             linkLabel2.TabStop = true;
             linkLabel2.Text = "https://winfsp.dev";
+            linkLabel2.LinkClicked += linkLabel_LinkClicked;
             // 
             // label20
             // 
@@ -847,6 +849,7 @@ namespace DwarfsGui
             linkLabel3.TabIndex = 9;
             linkLabel3.TabStop = true;
             linkLabel3.Text = "https://github.com/tony-long-xi/DwarfsGui";
+            linkLabel3.LinkClicked += linkLabel_LinkClicked;
             // 
             // FrmDwarfs
             // 
