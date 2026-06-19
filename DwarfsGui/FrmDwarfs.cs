@@ -399,7 +399,9 @@ namespace DwarfsGui
         {
             lvMounted.Items.Clear();
 
-            // 从 WMI 获取所有运行中的 dwarfs 进程挂载信息（权威来源）
+            // 清空旧列表，完全以 WMI 为权威来源重建
+            _dwarfsService.MountedImages.Clear();
+
             var allMounted = new List<MountInfo>();
             try
             {
@@ -415,13 +417,9 @@ namespace DwarfsGui
                 Log($"获取 WinFsp 挂载信息失败: {ex.Message}");
             }
 
-            // 添加当前会话管理但 WMI 未捕获的挂载
-            foreach (var mi in _dwarfsService.MountedImages)
-            {
-                // 用镜像路径去重（同一镜像只保留一条，优先 WMI 的准确挂载点）
-                if (!allMounted.Any(m => m.ImagePath == mi.ImagePath))
-                    allMounted.Add(mi);
-            }
+            // 同步到 MountedImages
+            foreach (var mi in allMounted)
+                _dwarfsService.MountedImages.Add(mi);
 
             foreach (var mi in allMounted)
             {

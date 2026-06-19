@@ -89,7 +89,7 @@ DwarfsGui.exe --extract "镜像路径"
 | 参数 | 说明 | 默认值 |
 |------|------|--------|
 | WinFspPath | WinFsp 安装路径 | `C:\Program Files (x86)\WinFsp\bin` |
-| CompressionLevel | 压缩级别（0-22） | 2 |
+| CompressionLevel | 压缩级别（0-7） | 2 |
 | DisableDedup | 禁用去重（加快制作速度） | false |
 | CacheSize | 挂载缓存大小 | 512M |
 | AutoMountPoint | 自动分配挂载点 | true |

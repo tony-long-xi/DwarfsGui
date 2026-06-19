@@ -93,6 +93,13 @@ namespace DwarfsGui
             btnLog = new Button();
             splitContainer1 = new SplitContainer();
             lstLog = new ListBox();
+            label17 = new Label();
+            label18 = new Label();
+            label19 = new Label();
+            linkLabel1 = new LinkLabel();
+            linkLabel2 = new LinkLabel();
+            label20 = new Label();
+            linkLabel3 = new LinkLabel();
             tabControl.SuspendLayout();
             tabCreate.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)nudWorkers).BeginInit();
@@ -683,6 +690,13 @@ namespace DwarfsGui
             // 
             // tabReg
             // 
+            tabReg.Controls.Add(linkLabel3);
+            tabReg.Controls.Add(label20);
+            tabReg.Controls.Add(linkLabel2);
+            tabReg.Controls.Add(linkLabel1);
+            tabReg.Controls.Add(label19);
+            tabReg.Controls.Add(label18);
+            tabReg.Controls.Add(label17);
             tabReg.Controls.Add(lblContextMenuStatus);
             tabReg.Controls.Add(btnUnregisterContextMenu);
             tabReg.Controls.Add(btnRegisterContextMenu);
@@ -767,6 +781,72 @@ namespace DwarfsGui
             lstLog.ScrollAlwaysVisible = true;
             lstLog.Size = new Size(1048, 244);
             lstLog.TabIndex = 2;
+            // 
+            // label17
+            // 
+            label17.AutoSize = true;
+            label17.Location = new Point(35, 123);
+            label17.Name = "label17";
+            label17.Size = new Size(280, 24);
+            label17.TabIndex = 3;
+            label17.Text = "免费软件       Made By Tony.Tian";
+            // 
+            // label18
+            // 
+            label18.AutoSize = true;
+            label18.Location = new Point(35, 170);
+            label18.Name = "label18";
+            label18.Size = new Size(85, 24);
+            label18.TabIndex = 4;
+            label18.Text = "dwarfs：";
+            // 
+            // label19
+            // 
+            label19.AutoSize = true;
+            label19.Location = new Point(35, 217);
+            label19.Name = "label19";
+            label19.Size = new Size(92, 24);
+            label19.TabIndex = 5;
+            label19.Text = "WinFsp：";
+            // 
+            // linkLabel1
+            // 
+            linkLabel1.AutoSize = true;
+            linkLabel1.Location = new Point(139, 170);
+            linkLabel1.Name = "linkLabel1";
+            linkLabel1.Size = new Size(284, 24);
+            linkLabel1.TabIndex = 6;
+            linkLabel1.TabStop = true;
+            linkLabel1.Text = "https://github.com/mhx/dwarfs";
+            // 
+            // linkLabel2
+            // 
+            linkLabel2.AutoSize = true;
+            linkLabel2.Location = new Point(139, 217);
+            linkLabel2.Name = "linkLabel2";
+            linkLabel2.Size = new Size(166, 24);
+            linkLabel2.TabIndex = 7;
+            linkLabel2.TabStop = true;
+            linkLabel2.Text = "https://winfsp.dev";
+            // 
+            // label20
+            // 
+            label20.AutoSize = true;
+            label20.Location = new Point(35, 264);
+            label20.Name = "label20";
+            label20.Size = new Size(100, 24);
+            label20.TabIndex = 8;
+            label20.Text = "当前软件：";
+            // 
+            // linkLabel3
+            // 
+            linkLabel3.AutoSize = true;
+            linkLabel3.Location = new Point(139, 264);
+            linkLabel3.Name = "linkLabel3";
+            linkLabel3.Size = new Size(386, 24);
+            linkLabel3.TabIndex = 9;
+            linkLabel3.TabStop = true;
+            linkLabel3.Text = "https://github.com/tony-long-xi/DwarfsGui";
             // 
             // FrmDwarfs
             // 
@@ -865,5 +945,12 @@ namespace DwarfsGui
         private TextBox txtWinFspPath;
         private Label label14;
         private Label label15;
+        private Label label20;
+        private LinkLabel linkLabel2;
+        private LinkLabel linkLabel1;
+        private Label label19;
+        private Label label18;
+        private Label label17;
+        private LinkLabel linkLabel3;
     }
 }
