@@ -10,12 +10,12 @@ public class DwarfsService
     private readonly string _binPath;
     private readonly Dictionary<string, Process> _mountProcesses = new();
     public List<MountInfo> MountedImages { get; } = new();
+    public string WinFspPath { get; set; } = @"C:\Program Files (x86)\WinFsp\bin";
 
     public DwarfsService()
     {
-        _binPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "..", "..", "..", "bin");
-        if (!Directory.Exists(_binPath))
-            _binPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "bin");
+        // 固定路径：程序目录下的 DwarfsBin 文件夹
+        _binPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "DwarfsBin");
     }
 
     private string MkdwarfsPath => Path.Combine(_binPath, "mkdwarfs.exe");
@@ -25,9 +25,8 @@ public class DwarfsService
     private void EnsureWinFspPath()
     {
         var envPath = Environment.GetEnvironmentVariable("PATH") ?? "";
-        var winfspBin = @"C:\Program Files (x86)\WinFsp\bin";
-        if (!envPath.Contains(winfspBin))
-            Environment.SetEnvironmentVariable("PATH", $"{winfspBin};{envPath}");
+        if (!envPath.Contains(WinFspPath))
+            Environment.SetEnvironmentVariable("PATH", $"{WinFspPath};{envPath}");
     }
 
     public async Task<(bool Success, string Output)> CreateImageAsync(
@@ -43,6 +42,21 @@ public class DwarfsService
 
         if (settings.Force)
             args.Add("-f");
+
+        // 自定义压缩算法
+        if (!string.IsNullOrEmpty(settings.CompressionAlgorithm) &&
+            settings.CompressionAlgorithm != "zstd:level=22")
+        {
+            args.Add("-C");
+            args.Add(settings.CompressionAlgorithm);
+        }
+
+        // 禁用去重（跳过文件哈希计算）
+        if (settings.DisableDedup)
+        {
+            args.Add("--file-hash");
+            args.Add("none");
+        }
 
         return await RunCommandAsync(MkdwarfsPath, args, onOutput, ct);
     }
@@ -240,7 +254,12 @@ public class DwarfsService
             }
 
             if (arg.StartsWith("-"))
-                continue; // 跳过选项参数
+            {
+                // -o 后面跟一个值参数，需要一起跳过
+                if (arg == "-o" && i + 1 < parts.Count)
+                    i++;
+                continue;
+            }
 
             // 第一个非选项参数是镜像路径
             if (string.IsNullOrEmpty(imagePath))
@@ -351,8 +370,29 @@ public class DwarfsService
 
     public void UnmountAll()
     {
+        // 先清理本会话管理的挂载
         foreach (var mp in _mountProcesses.Keys.ToList())
             Unmount(mp);
+
+        // 再清理 WMI 发现的外部 dwarfs 进程
+        try
+        {
+            var mounted = GetWinFspMountedImages();
+            foreach (var mi in mounted)
+            {
+                if (mi.ProcessId > 0)
+                {
+                    try
+                    {
+                        using var proc = Process.GetProcessById(mi.ProcessId);
+                        proc.Kill();
+                        proc.WaitForExit(3000);
+                    }
+                    catch { }
+                }
+            }
+        }
+        catch { }
     }
 
     private string ExtractMountPointFromLine(string line)

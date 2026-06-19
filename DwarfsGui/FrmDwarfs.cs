@@ -68,7 +68,7 @@ namespace DwarfsGui
 
         private void LoadSettings()
         {
-            nudCompressionLevel.Value = _settings.CompressionLevel;
+            cmbCompressionLevel.SelectedIndex = Math.Min(_settings.CompressionLevel, 7);
             nudWorkers.Value = _settings.Workers;
             chkForce.Checked = _settings.Force;
             txtCacheSize.Text = _settings.CacheSize;
@@ -77,11 +77,15 @@ namespace DwarfsGui
             nudExtractWorkers.Value = _settings.ExtractWorkers;
             txtExtractCacheSize.Text = _settings.ExtractCacheSize;
             chkContinueOnError.Checked = _settings.ContinueOnError;
+            txtWinFspPath.Text = _settings.WinFspPath;
+            _dwarfsService.WinFspPath = _settings.WinFspPath;
+            chkDisableDedup.Checked = _settings.DisableDedup;
+            cmbCompressionAlgo.Text = _settings.CompressionAlgorithm;
         }
 
         private void SaveSettings()
         {
-            _settings.CompressionLevel = (int)nudCompressionLevel.Value;
+            _settings.CompressionLevel = cmbCompressionLevel.SelectedIndex;
             _settings.Workers = (int)nudWorkers.Value;
             _settings.Force = chkForce.Checked;
             _settings.CacheSize = txtCacheSize.Text;
@@ -90,13 +94,37 @@ namespace DwarfsGui
             _settings.ExtractWorkers = (int)nudExtractWorkers.Value;
             _settings.ExtractCacheSize = txtExtractCacheSize.Text;
             _settings.ContinueOnError = chkContinueOnError.Checked;
+            _settings.WinFspPath = txtWinFspPath.Text;
+            _dwarfsService.WinFspPath = txtWinFspPath.Text;
+            _settings.DisableDedup = chkDisableDedup.Checked;
+            _settings.CompressionAlgorithm = cmbCompressionAlgo.Text == "(默认)" ? "" : cmbCompressionAlgo.Text;
             _settingsService.Save(_settings);
         }
 
         protected override void OnFormClosing(FormClosingEventArgs e)
         {
             SaveSettings();
-            _dwarfsService.UnmountAll();
+
+            // 如果有挂载记录，提示用户是否清除全部挂载
+            if (lvMounted.Items.Count > 0)
+            {
+                var result = MessageBox.Show(
+                    $"当前有 {lvMounted.Items.Count} 个镜像正在挂载中，是否清除所有挂载并退出？",
+                    "提示",
+                    MessageBoxButtons.YesNo,
+                    MessageBoxIcon.Warning);
+
+                if (result == DialogResult.Yes)
+                {
+                    _dwarfsService.UnmountAll();
+                }
+                //else
+                //{
+                //    e.Cancel = true;
+                //    return;
+                //}
+            }
+
             base.OnFormClosing(e);
         }
 
@@ -254,7 +282,7 @@ namespace DwarfsGui
                 if (string.IsNullOrEmpty(mp))
                     mp = ExtractMountPoint(output_text);
                 if (string.IsNullOrEmpty(mp))
-                    mp = "auto";
+                    mp = DeriveAutoMountPoint(image);
 
                 _dwarfsService.RegisterMount(mp, process);
                 _dwarfsService.MountedImages.Add(new MountInfo
@@ -299,21 +327,29 @@ namespace DwarfsGui
             return "";
         }
 
+        private string DeriveAutoMountPoint(string imagePath)
+        {
+            try
+            {
+                var dir = Path.GetDirectoryName(imagePath);
+                var name = Path.GetFileNameWithoutExtension(imagePath);
+                return Path.Combine(dir ?? "", name);
+            }
+            catch { return ""; }
+        }
+
         private void RefreshMountedList()
         {
             lvMounted.Items.Clear();
 
-            // 合并 WinFsp 中已挂载的镜像和当前会话挂载的镜像
+            // 从 WMI 获取所有运行中的 dwarfs 进程挂载信息（权威来源）
             var allMounted = new List<MountInfo>();
-
-            // 从 WinFsp 获取所有已挂载的 dwarfs 镜像
             try
             {
                 var winfspMounted = _dwarfsService.GetWinFspMountedImages();
                 foreach (var mi in winfspMounted)
                 {
-                    // 检查是否已经在当前会话的挂载列表中
-                    if (!allMounted.Any(m => m.MountPoint == mi.MountPoint && m.ImagePath == mi.ImagePath))
+                    if (!allMounted.Any(m => m.ProcessId == mi.ProcessId))
                         allMounted.Add(mi);
                 }
             }
@@ -322,10 +358,11 @@ namespace DwarfsGui
                 Log($"获取 WinFsp 挂载信息失败: {ex.Message}");
             }
 
-            // 添加当前会话管理的挂载（可能已经在 WinFsp 列表中，去重）
+            // 添加当前会话管理但 WMI 未捕获的挂载
             foreach (var mi in _dwarfsService.MountedImages)
             {
-                if (!allMounted.Any(m => m.MountPoint == mi.MountPoint && m.ImagePath == mi.ImagePath))
+                // 用镜像路径去重（同一镜像只保留一条，优先 WMI 的准确挂载点）
+                if (!allMounted.Any(m => m.ImagePath == mi.ImagePath))
                     allMounted.Add(mi);
             }
 
@@ -540,6 +577,11 @@ namespace DwarfsGui
                 tabControl.SelectedTab = tabMount;
                 txtMountImage.Text = argPath;
             }
+        }
+
+        private void btnBrowseWinFsp_Click(object sender, EventArgs e)
+        {
+            BrowseFolder(txtWinFspPath);
         }
     }
 

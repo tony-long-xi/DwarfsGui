@@ -14,7 +14,6 @@ public class SettingsService
     {
         try
         {
-            string ss = SettingsPath;
             if (File.Exists(SettingsPath))
             {
                 var json = File.ReadAllText(SettingsPath);
@@ -22,7 +21,11 @@ public class SettingsService
             }
         }
         catch { }
-        return new DwarfsSettings();
+
+        // 首次运行，自动创建默认配置文件
+        var settings = new DwarfsSettings();
+        Save(settings);
+        return settings;
     }
 
     public void Save(DwarfsSettings settings)

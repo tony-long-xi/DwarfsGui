@@ -30,13 +30,17 @@ namespace DwarfsGui
         {
             tabControl = new TabControl();
             tabCreate = new TabPage();
+            label15 = new Label();
             btnBrowseWinFsp = new Button();
-            textBox1 = new TextBox();
+            txtWinFspPath = new TextBox();
             label14 = new Label();
             label1 = new Label();
             progressCreate = new ProgressBar();
             btnCreate = new Button();
-            nudCompressionLevel = new NumericUpDown();
+            cmbCompressionAlgo = new ComboBox();
+            label16 = new Label();
+            chkDisableDedup = new CheckBox();
+            cmbCompressionLevel = new ComboBox();
             chkForce = new CheckBox();
             nudWorkers = new NumericUpDown();
             label4 = new Label();
@@ -90,7 +94,6 @@ namespace DwarfsGui
             lstLog = new ListBox();
             tabControl.SuspendLayout();
             tabCreate.SuspendLayout();
-            ((System.ComponentModel.ISupportInitialize)nudCompressionLevel).BeginInit();
             ((System.ComponentModel.ISupportInitialize)nudWorkers).BeginInit();
             tabMount.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)nudMountWorkers).BeginInit();
@@ -119,13 +122,17 @@ namespace DwarfsGui
             // 
             // tabCreate
             // 
+            tabCreate.Controls.Add(label15);
             tabCreate.Controls.Add(btnBrowseWinFsp);
-            tabCreate.Controls.Add(textBox1);
+            tabCreate.Controls.Add(txtWinFspPath);
             tabCreate.Controls.Add(label14);
             tabCreate.Controls.Add(label1);
             tabCreate.Controls.Add(progressCreate);
             tabCreate.Controls.Add(btnCreate);
-            tabCreate.Controls.Add(nudCompressionLevel);
+            tabCreate.Controls.Add(cmbCompressionAlgo);
+            tabCreate.Controls.Add(label16);
+            tabCreate.Controls.Add(chkDisableDedup);
+            tabCreate.Controls.Add(cmbCompressionLevel);
             tabCreate.Controls.Add(chkForce);
             tabCreate.Controls.Add(nudWorkers);
             tabCreate.Controls.Add(label4);
@@ -143,6 +150,15 @@ namespace DwarfsGui
             tabCreate.Text = "制作镜像";
             tabCreate.UseVisualStyleBackColor = true;
             // 
+            // label15
+            // 
+            label15.AutoSize = true;
+            label15.Location = new Point(25, 298);
+            label15.Name = "label15";
+            label15.Size = new Size(466, 24);
+            label15.TabIndex = 16;
+            label15.Text = "WinFsp必须提前安装，安装包在程序目录的DwarfsBin中";
+            // 
             // btnBrowseWinFsp
             // 
             btnBrowseWinFsp.Location = new Point(884, 244);
@@ -151,14 +167,15 @@ namespace DwarfsGui
             btnBrowseWinFsp.TabIndex = 15;
             btnBrowseWinFsp.Text = "浏览...";
             btnBrowseWinFsp.UseVisualStyleBackColor = true;
+            btnBrowseWinFsp.Click += btnBrowseWinFsp_Click;
             // 
-            // textBox1
+            // txtWinFspPath
             // 
-            textBox1.Location = new Point(158, 246);
-            textBox1.Name = "textBox1";
-            textBox1.Size = new Size(697, 30);
-            textBox1.TabIndex = 14;
-            textBox1.Text = "C:\\Program Files (x86)\\WinFsp\\bin";
+            txtWinFspPath.Location = new Point(158, 246);
+            txtWinFspPath.Name = "txtWinFspPath";
+            txtWinFspPath.Size = new Size(697, 30);
+            txtWinFspPath.TabIndex = 14;
+            txtWinFspPath.Text = "C:\\Program Files (x86)\\WinFsp\\bin";
             // 
             // label14
             // 
@@ -180,9 +197,9 @@ namespace DwarfsGui
             // 
             // progressCreate
             // 
-            progressCreate.Location = new Point(24, 160);
+            progressCreate.Location = new Point(24, 212);
             progressCreate.Name = "progressCreate";
-            progressCreate.Size = new Size(972, 30);
+            progressCreate.Size = new Size(972, 20);
             progressCreate.TabIndex = 0;
             progressCreate.Visible = false;
             // 
@@ -200,19 +217,49 @@ namespace DwarfsGui
             btnCreate.UseVisualStyleBackColor = false;
             btnCreate.Click += btnCreate_Click;
             // 
-            // nudCompressionLevel
+            // cmbCompressionAlgo
             // 
-            nudCompressionLevel.Location = new Point(119, 100);
-            nudCompressionLevel.Maximum = new decimal(new int[] { 9, 0, 0, 0 });
-            nudCompressionLevel.Name = "nudCompressionLevel";
-            nudCompressionLevel.Size = new Size(71, 30);
-            nudCompressionLevel.TabIndex = 7;
-            nudCompressionLevel.Value = new decimal(new int[] { 2, 0, 0, 0 });
+            cmbCompressionAlgo.DropDownStyle = ComboBoxStyle.DropDownList;
+            cmbCompressionAlgo.FormattingEnabled = true;
+            cmbCompressionAlgo.Items.AddRange(new object[] { "(默认)", "lz4", "lz4hc:level=9", "null", "lzma:level=9" });
+            cmbCompressionAlgo.Location = new Point(119, 138);
+            cmbCompressionAlgo.Name = "cmbCompressionAlgo";
+            cmbCompressionAlgo.Size = new Size(200, 32);
+            cmbCompressionAlgo.TabIndex = 16;
+            // 
+            // label16
+            // 
+            label16.AutoSize = true;
+            label16.Location = new Point(24, 141);
+            label16.Name = "label16";
+            label16.Size = new Size(82, 24);
+            label16.TabIndex = 15;
+            label16.Text = "压缩算法";
+            // 
+            // chkDisableDedup
+            // 
+            chkDisableDedup.AutoSize = true;
+            chkDisableDedup.Location = new Point(545, 139);
+            chkDisableDedup.Name = "chkDisableDedup";
+            chkDisableDedup.Size = new Size(108, 28);
+            chkDisableDedup.TabIndex = 17;
+            chkDisableDedup.Text = "禁用去重";
+            chkDisableDedup.UseVisualStyleBackColor = true;
+            // 
+            // cmbCompressionLevel
+            // 
+            cmbCompressionLevel.DropDownStyle = ComboBoxStyle.DropDownList;
+            cmbCompressionLevel.FormattingEnabled = true;
+            cmbCompressionLevel.Items.AddRange(new object[] { "0 - 极速临时打包", "1 - 快速备份", "2 - 日常使用", "3 - 兼顾速度与压缩", "4 - 较好压缩率", "5 - 代码/小文件专用", "6 - 高压缩归档", "7 - 极致压缩(默认)" });
+            cmbCompressionLevel.Location = new Point(119, 100);
+            cmbCompressionLevel.Name = "cmbCompressionLevel";
+            cmbCompressionLevel.Size = new Size(200, 32);
+            cmbCompressionLevel.TabIndex = 7;
             // 
             // chkForce
             // 
             chkForce.AutoSize = true;
-            chkForce.Location = new Point(490, 101);
+            chkForce.Location = new Point(545, 101);
             chkForce.Name = "chkForce";
             chkForce.Size = new Size(144, 28);
             chkForce.TabIndex = 11;
@@ -221,7 +268,7 @@ namespace DwarfsGui
             // 
             // nudWorkers
             // 
-            nudWorkers.Location = new Point(363, 100);
+            nudWorkers.Location = new Point(440, 100);
             nudWorkers.Name = "nudWorkers";
             nudWorkers.Size = new Size(71, 30);
             nudWorkers.TabIndex = 9;
@@ -230,7 +277,7 @@ namespace DwarfsGui
             // label4
             // 
             label4.AutoSize = true;
-            label4.Location = new Point(275, 103);
+            label4.Location = new Point(352, 103);
             label4.Name = "label4";
             label4.Size = new Size(82, 24);
             label4.TabIndex = 8;
@@ -317,15 +364,15 @@ namespace DwarfsGui
             // 
             // progressMount
             // 
-            progressMount.Location = new Point(24, 319);
+            progressMount.Location = new Point(24, 343);
             progressMount.Name = "progressMount";
-            progressMount.Size = new Size(972, 30);
+            progressMount.Size = new Size(972, 20);
             progressMount.TabIndex = 16;
             progressMount.Visible = false;
             // 
             // txtReadAhead
             // 
-            txtReadAhead.Location = new Point(511, 271);
+            txtReadAhead.Location = new Point(511, 298);
             txtReadAhead.Name = "txtReadAhead";
             txtReadAhead.Size = new Size(93, 30);
             txtReadAhead.TabIndex = 14;
@@ -333,7 +380,7 @@ namespace DwarfsGui
             // label9
             // 
             label9.AutoSize = true;
-            label9.Location = new Point(423, 274);
+            label9.Location = new Point(423, 301);
             label9.Name = "label9";
             label9.Size = new Size(82, 24);
             label9.TabIndex = 13;
@@ -341,7 +388,7 @@ namespace DwarfsGui
             // 
             // btnBrowseMountPoint
             // 
-            btnBrowseMountPoint.Location = new Point(881, 227);
+            btnBrowseMountPoint.Location = new Point(881, 254);
             btnBrowseMountPoint.Name = "btnBrowseMountPoint";
             btnBrowseMountPoint.Size = new Size(112, 34);
             btnBrowseMountPoint.TabIndex = 8;
@@ -351,7 +398,7 @@ namespace DwarfsGui
             // 
             // btnBrowseMountImage
             // 
-            btnBrowseMountImage.Location = new Point(884, 185);
+            btnBrowseMountImage.Location = new Point(884, 212);
             btnBrowseMountImage.Name = "btnBrowseMountImage";
             btnBrowseMountImage.Size = new Size(112, 34);
             btnBrowseMountImage.TabIndex = 5;
@@ -365,7 +412,7 @@ namespace DwarfsGui
             btnMount.FlatAppearance.BorderSize = 0;
             btnMount.FlatStyle = FlatStyle.Flat;
             btnMount.ForeColor = Color.White;
-            btnMount.Location = new Point(881, 269);
+            btnMount.Location = new Point(881, 296);
             btnMount.Name = "btnMount";
             btnMount.Size = new Size(112, 34);
             btnMount.TabIndex = 15;
@@ -375,7 +422,7 @@ namespace DwarfsGui
             // 
             // txtCacheSize
             // 
-            txtCacheSize.Location = new Point(304, 271);
+            txtCacheSize.Location = new Point(304, 298);
             txtCacheSize.Name = "txtCacheSize";
             txtCacheSize.Size = new Size(93, 30);
             txtCacheSize.TabIndex = 12;
@@ -383,7 +430,7 @@ namespace DwarfsGui
             // label8
             // 
             label8.AutoSize = true;
-            label8.Location = new Point(216, 274);
+            label8.Location = new Point(216, 301);
             label8.Name = "label8";
             label8.Size = new Size(82, 24);
             label8.TabIndex = 11;
@@ -391,7 +438,7 @@ namespace DwarfsGui
             // 
             // nudMountWorkers
             // 
-            nudMountWorkers.Location = new Point(119, 271);
+            nudMountWorkers.Location = new Point(119, 298);
             nudMountWorkers.Maximum = new decimal(new int[] { 9, 0, 0, 0 });
             nudMountWorkers.Name = "nudMountWorkers";
             nudMountWorkers.Size = new Size(71, 30);
@@ -401,7 +448,7 @@ namespace DwarfsGui
             // label5
             // 
             label5.AutoSize = true;
-            label5.Location = new Point(24, 274);
+            label5.Location = new Point(24, 301);
             label5.Name = "label5";
             label5.Size = new Size(82, 24);
             label5.TabIndex = 9;
@@ -409,14 +456,14 @@ namespace DwarfsGui
             // 
             // txtMountPoint
             // 
-            txtMountPoint.Location = new Point(119, 229);
+            txtMountPoint.Location = new Point(119, 256);
             txtMountPoint.Name = "txtMountPoint";
             txtMountPoint.Size = new Size(736, 30);
             txtMountPoint.TabIndex = 7;
             // 
             // txtMountImage
             // 
-            txtMountImage.Location = new Point(119, 187);
+            txtMountImage.Location = new Point(119, 214);
             txtMountImage.Name = "txtMountImage";
             txtMountImage.Size = new Size(736, 30);
             txtMountImage.TabIndex = 4;
@@ -424,7 +471,7 @@ namespace DwarfsGui
             // label6
             // 
             label6.AutoSize = true;
-            label6.Location = new Point(24, 232);
+            label6.Location = new Point(24, 259);
             label6.Name = "label6";
             label6.Size = new Size(64, 24);
             label6.TabIndex = 6;
@@ -433,7 +480,7 @@ namespace DwarfsGui
             // label7
             // 
             label7.AutoSize = true;
-            label7.Location = new Point(24, 190);
+            label7.Location = new Point(24, 217);
             label7.Name = "label7";
             label7.Size = new Size(82, 24);
             label7.TabIndex = 3;
@@ -445,7 +492,7 @@ namespace DwarfsGui
             btnOpenMountPoint.FlatAppearance.BorderSize = 0;
             btnOpenMountPoint.FlatStyle = FlatStyle.Flat;
             btnOpenMountPoint.ForeColor = Color.White;
-            btnOpenMountPoint.Location = new Point(155, 142);
+            btnOpenMountPoint.Location = new Point(155, 169);
             btnOpenMountPoint.Name = "btnOpenMountPoint";
             btnOpenMountPoint.Size = new Size(112, 34);
             btnOpenMountPoint.TabIndex = 2;
@@ -459,7 +506,7 @@ namespace DwarfsGui
             btnUnmount.FlatAppearance.BorderSize = 0;
             btnUnmount.FlatStyle = FlatStyle.Flat;
             btnUnmount.ForeColor = Color.White;
-            btnUnmount.Location = new Point(24, 142);
+            btnUnmount.Location = new Point(24, 169);
             btnUnmount.Name = "btnUnmount";
             btnUnmount.Size = new Size(112, 34);
             btnUnmount.TabIndex = 1;
@@ -474,7 +521,7 @@ namespace DwarfsGui
             lvMounted.GridLines = true;
             lvMounted.Location = new Point(24, 14);
             lvMounted.Name = "lvMounted";
-            lvMounted.Size = new Size(983, 114);
+            lvMounted.Size = new Size(983, 149);
             lvMounted.TabIndex = 0;
             lvMounted.UseCompatibleStateImageBehavior = false;
             lvMounted.View = View.Details;
@@ -482,7 +529,7 @@ namespace DwarfsGui
             // col1
             // 
             col1.Text = "镜像路径";
-            col1.Width = 600;
+            col1.Width = 500;
             // 
             // columnHeader2
             // 
@@ -492,7 +539,7 @@ namespace DwarfsGui
             // columnHeader3
             // 
             columnHeader3.Text = "挂载时间";
-            columnHeader3.Width = 130;
+            columnHeader3.Width = 255;
             // 
             // tabExtract
             // 
@@ -733,7 +780,6 @@ namespace DwarfsGui
             tabControl.ResumeLayout(false);
             tabCreate.ResumeLayout(false);
             tabCreate.PerformLayout();
-            ((System.ComponentModel.ISupportInitialize)nudCompressionLevel).EndInit();
             ((System.ComponentModel.ISupportInitialize)nudWorkers).EndInit();
             tabMount.ResumeLayout(false);
             tabMount.PerformLayout();
@@ -770,7 +816,10 @@ namespace DwarfsGui
         private Label label3;
         private ListBox lstLog;
         private CheckBox chkForce;
-        private NumericUpDown nudCompressionLevel;
+        private ComboBox cmbCompressionLevel;
+        private ComboBox cmbCompressionAlgo;
+        private Label label16;
+        private CheckBox chkDisableDedup;
         private Button btnCreate;
         private ProgressBar progressCreate;
         private ListView lvMounted;
@@ -810,7 +859,8 @@ namespace DwarfsGui
         private Label lblContextMenuStatus;
         private ProgressBar progressMount;
         private Button btnBrowseWinFsp;
-        private TextBox textBox1;
+        private TextBox txtWinFspPath;
         private Label label14;
+        private Label label15;
     }
 }
