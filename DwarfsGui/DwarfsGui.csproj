@@ -7,9 +7,9 @@
     <UseWindowsForms>true</UseWindowsForms>
     <ImplicitUsings>enable</ImplicitUsings>
     <ApplicationIcon>logo.ico</ApplicationIcon>
-    <Version>1.1.0</Version>
+    <Version>1.2.0</Version>
     <Title>DwarfsGui</Title>
-    <Authors>Tony</Authors>
+    <Authors>Tony.Tian</Authors>
     <PackageProjectUrl>https://github.com/tony-long-xi/DwarfsGui</PackageProjectUrl>
   </PropertyGroup>
 
