@@ -10,6 +10,7 @@
     <Version>1.1.0</Version>
     <Title>DwarfsGui</Title>
     <Authors>Tony</Authors>
+    <PackageProjectUrl>https://github.com/tony-long-xi/DwarfsGui</PackageProjectUrl>
   </PropertyGroup>
 
   <ItemGroup>
