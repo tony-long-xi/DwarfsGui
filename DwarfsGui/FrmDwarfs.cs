@@ -1,19 +1,7 @@
 using DwarfsGui.Models;
 using DwarfsGui.Services;
-using Microsoft.VisualBasic.Logging;
-using System;
-using System.Collections.Generic;
-using System.ComponentModel;
-using System.Data;
 using System.Diagnostics;
-using System.Drawing;
-using System.Linq;
-using System.Runtime;
-using System.Text;
-using System.Threading.Tasks;
-using System.Windows.Forms;
-using static System.Net.WebRequestMethods;
-using static System.Windows.Forms.VisualStyles.VisualStyleElement.TextBox;
+
 
 namespace DwarfsGui
 {
@@ -57,7 +45,76 @@ namespace DwarfsGui
 
         private void btnBrowseCreateInput_Click(object sender, EventArgs e)
         {
-            BrowseFolder(txtCreateInput);
+            // 弹出选择：文件或文件夹
+            using var choiceDlg = new Form
+            {
+                Text = "选择输入",
+                Size = new Size(320, 150),
+                StartPosition = FormStartPosition.CenterParent,
+                FormBorderStyle = FormBorderStyle.FixedDialog,
+                MaximizeBox = false,
+                MinimizeBox = false
+            };
+
+            var lbl = new Label { Text = "请选择输入类型：", Location = new Point(20, 20), AutoSize = true };
+            var btnFile = new Button { Text = "选择文件", Location = new Point(30, 55), Size = new Size(100, 35) };
+            var btnFolder = new Button { Text = "选择文件夹", Location = new Point(150, 55), Size = new Size(120, 35) };
+
+            btnFile.Click += (_, _) => { choiceDlg.DialogResult = DialogResult.Yes; choiceDlg.Close(); };
+            btnFolder.Click += (_, _) => { choiceDlg.DialogResult = DialogResult.No; choiceDlg.Close(); };
+            choiceDlg.CancelButton = btnFolder;
+
+            choiceDlg.Controls.AddRange(new Control[] { lbl, btnFile, btnFolder });
+
+            var result = choiceDlg.ShowDialog();
+
+            if (result == DialogResult.Yes)
+            {
+                // 选择文件
+                using var dlg = new OpenFileDialog
+                {
+                    Title = "选择要制作镜像的文件",
+                    Filter = "所有文件|*.*"
+                };
+                var currentPath = txtCreateInput.Text.Trim();
+                if (!string.IsNullOrEmpty(currentPath) && System.IO.File.Exists(currentPath))
+                {
+                    dlg.InitialDirectory = System.IO.Path.GetDirectoryName(currentPath);
+                    dlg.FileName = System.IO.Path.GetFileName(currentPath);
+                }
+                else if (!string.IsNullOrEmpty(currentPath) && System.IO.Directory.Exists(currentPath))
+                {
+                    dlg.InitialDirectory = currentPath;
+                }
+
+                if (dlg.ShowDialog() == DialogResult.OK)
+                    txtCreateInput.Text = dlg.FileName;
+            }
+            else if (result == DialogResult.No)
+            {
+                // 选择文件夹
+                using var dlg = new FolderBrowserDialog
+                {
+                    Description = "选择要制作镜像的文件夹",
+                    UseDescriptionForTitle = true,
+                    ShowNewFolderButton = false
+                };
+                var currentPath = txtCreateInput.Text.Trim();
+                if (!string.IsNullOrEmpty(currentPath))
+                {
+                    if (System.IO.Directory.Exists(currentPath))
+                        dlg.SelectedPath = currentPath;
+                    else if (System.IO.File.Exists(currentPath))
+                    {
+                        var dirPath = System.IO.Path.GetDirectoryName(currentPath);
+                        if (!string.IsNullOrEmpty(dirPath))
+                            dlg.SelectedPath = dirPath;
+                    }
+                }
+
+                if (dlg.ShowDialog() == DialogResult.OK)
+                    txtCreateInput.Text = dlg.SelectedPath;
+            }
         }
 
         private void btnBrowseCreateOutput_Click(object sender, EventArgs e)
@@ -436,75 +493,58 @@ namespace DwarfsGui
             {
                 var exePath = Application.ExecutablePath;
 
-                // 文件右键菜单 - 二级子菜单结构
-                using var fileKey = Microsoft.Win32.Registry.CurrentUser.CreateSubKey(
-                    @"Software\Classes\*\shell\DwarfsGUI");
-                fileKey.SetValue("MUIVerb", "Dwarfs GUI");
-                fileKey.SetValue("Icon", $"\"{exePath}\",0");
-                fileKey.SetValue("SubCommands", "01-make;02-mount;03-extract");
+                // 文件右键菜单 - 制作镜像（所有文件）
+                using var fileMakeKey = Microsoft.Win32.Registry.CurrentUser.CreateSubKey(
+                    @"Software\Classes\*\shell\DwarfsGUI.Make");
+                fileMakeKey.SetValue("MUIVerb", "制作镜像");
+                fileMakeKey.SetValue("Icon", $"\"{exePath}\",0");
+                fileMakeKey.SetValue("Position", "Bottom");
+                using var fileMakeCmd = fileMakeKey.CreateSubKey("command");
+                fileMakeCmd.SetValue("", $"\"{exePath}\" --create \"%1\"");
 
-                using var mkKey = fileKey.CreateSubKey("01-make");
-                mkKey.SetValue("MUIVerb", "制作镜像");
-                using var mkCmd = mkKey.CreateSubKey("command");
-                mkCmd.SetValue("", $"\"{exePath}\" --create \"%1\"");
+                // .dwarfs 文件右键菜单 - 挂载镜像（只对 dwarfs 文件显示）
+                using var dwarfsKey = Microsoft.Win32.Registry.CurrentUser.CreateSubKey(
+                    @"Software\Classes\.dwarfs");
+                var dwarfsFileType = dwarfsKey.GetValue("") as string;
+                if (string.IsNullOrEmpty(dwarfsFileType))
+                {
+                    dwarfsFileType = "DwarfsArchive";
+                    dwarfsKey.SetValue("", dwarfsFileType);
+                }
+                dwarfsKey.Close();
 
-                using var mountKey = fileKey.CreateSubKey("02-mount");
-                mountKey.SetValue("MUIVerb", "加载镜像");
-                using var mountCmd = mountKey.CreateSubKey("command");
-                mountCmd.SetValue("", $"\"{exePath}\" --mount \"%1\"");
+                // 为 dwarfs 文件类型创建挂载菜单
+                using var dwarfsMountKey = Microsoft.Win32.Registry.CurrentUser.CreateSubKey(
+                    $"Software\\Classes\\{dwarfsFileType}\\shell\\DwarfsGUI.Mount");
+                dwarfsMountKey.SetValue("MUIVerb", "挂载镜像");
+                dwarfsMountKey.SetValue("Icon", $"\"{exePath}\",0");
+                dwarfsMountKey.SetValue("Position", "Bottom");
+                using var dwarfsMountCmd = dwarfsMountKey.CreateSubKey("command");
+                dwarfsMountCmd.SetValue("", $"\"{exePath}\" --mount \"%1\"");
 
-                using var extractKey = fileKey.CreateSubKey("03-extract");
-                extractKey.SetValue("MUIVerb", "提取镜像");
-                using var extractCmd = extractKey.CreateSubKey("command");
-                extractCmd.SetValue("", $"\"{exePath}\" --extract \"%1\"");
+                // 文件夹右键菜单 - 制作镜像
+                using var folderMakeKey = Microsoft.Win32.Registry.CurrentUser.CreateSubKey(
+                    @"Software\Classes\Directory\shell\DwarfsGUI.Make");
+                folderMakeKey.SetValue("MUIVerb", "制作镜像");
+                folderMakeKey.SetValue("Icon", $"\"{exePath}\",0");
+                folderMakeKey.SetValue("Position", "Bottom");
+                using var folderMakeCmd = folderMakeKey.CreateSubKey("command");
+                folderMakeCmd.SetValue("", $"\"{exePath}\" --create \"%1\"");
 
-                // 文件夹右键菜单
-                using var folderKey = Microsoft.Win32.Registry.CurrentUser.CreateSubKey(
-                    @"Software\Classes\Directory\shell\DwarfsGUI");
-                folderKey.SetValue("MUIVerb", "Dwarfs GUI");
-                folderKey.SetValue("Icon", $"\"{exePath}\",0");
-                folderKey.SetValue("SubCommands", "01-make;02-mount;03-extract");
+                // 文件夹背景右键菜单 - 制作镜像
+                using var bgMakeKey = Microsoft.Win32.Registry.CurrentUser.CreateSubKey(
+                    @"Software\Classes\Directory\Background\shell\DwarfsGUI.Make");
+                bgMakeKey.SetValue("MUIVerb", "制作镜像");
+                bgMakeKey.SetValue("Icon", $"\"{exePath}\",0");
+                bgMakeKey.SetValue("Position", "Bottom");
+                using var bgMakeCmd = bgMakeKey.CreateSubKey("command");
+                bgMakeCmd.SetValue("", $"\"{exePath}\" --create \"%V\"");
 
-                using var fMkKey = folderKey.CreateSubKey("01-make");
-                fMkKey.SetValue("MUIVerb", "制作镜像");
-                using var fMkCmd = fMkKey.CreateSubKey("command");
-                fMkCmd.SetValue("", $"\"{exePath}\" --create \"%1\"");
-
-                using var fMountKey = folderKey.CreateSubKey("02-mount");
-                fMountKey.SetValue("MUIVerb", "加载镜像");
-                using var fMountCmd = fMountKey.CreateSubKey("command");
-                fMountCmd.SetValue("", $"\"{exePath}\" --mount \"%1\"");
-
-                using var fExtractKey = folderKey.CreateSubKey("03-extract");
-                fExtractKey.SetValue("MUIVerb", "提取镜像");
-                using var fExtractCmd = fExtractKey.CreateSubKey("command");
-                fExtractCmd.SetValue("", $"\"{exePath}\" --extract \"%1\"");
-
-                // 文件夹背景右键菜单
-                using var bgKey = Microsoft.Win32.Registry.CurrentUser.CreateSubKey(
-                    @"Software\Classes\Directory\Background\shell\DwarfsGUI");
-                bgKey.SetValue("MUIVerb", "Dwarfs GUI");
-                bgKey.SetValue("Icon", $"\"{exePath}\",0");
-                bgKey.SetValue("SubCommands", "01-make;02-mount;03-extract");
-
-                using var bgMkKey = bgKey.CreateSubKey("01-make");
-                bgMkKey.SetValue("MUIVerb", "制作镜像");
-                using var bgMkCmd = bgMkKey.CreateSubKey("command");
-                bgMkCmd.SetValue("", $"\"{exePath}\" --create \"%V\"");
-
-                using var bgMountKey = bgKey.CreateSubKey("02-mount");
-                bgMountKey.SetValue("MUIVerb", "加载镜像");
-                using var bgMountCmd = bgMountKey.CreateSubKey("command");
-                bgMountCmd.SetValue("", $"\"{exePath}\" --mount \"%V\"");
-
-                using var bgExtractKey = bgKey.CreateSubKey("03-extract");
-                bgExtractKey.SetValue("MUIVerb", "提取镜像");
-                using var bgExtractCmd = bgExtractKey.CreateSubKey("command");
-                bgExtractCmd.SetValue("", $"\"{exePath}\" --extract \"%V\"");
-
-                lblContextMenuStatus.Text = "右键菜单已注册（含二级子菜单）";
+                lblContextMenuStatus.Text = "右键菜单已注册";
                 lblContextMenuStatus.ForeColor = Color.Green;
-                Log("右键菜单注册成功（二级子菜单：制作镜像/加载镜像/提取镜像）");
+                Log("右键菜单注册成功");
+                Log("- 制作镜像：所有文件/文件夹/背景");
+                Log("- 挂载镜像：仅 .dwarfs 文件");
                 Log("提示：可能需要重启资源管理器或重新登录才能生效");
             }
             catch (Exception ex)
@@ -519,12 +559,39 @@ namespace DwarfsGui
         {
             try
             {
+                // 删除文件右键菜单 - 制作镜像
+                Microsoft.Win32.Registry.CurrentUser.DeleteSubKeyTree(
+                    @"Software\Classes\*\shell\DwarfsGUI.Make", false);
+                Microsoft.Win32.Registry.CurrentUser.DeleteSubKeyTree(
+                    @"Software\Classes\*\shell\DwarfsGUI.Mount", false);
+                
+                // 删除 .dwarfs 文件挂载菜单
+                Microsoft.Win32.Registry.CurrentUser.DeleteSubKeyTree(
+                    @"Software\Classes\DwarfsArchive\shell\DwarfsGUI.Mount", false);
+                
+                // 删除文件夹右键菜单
+                Microsoft.Win32.Registry.CurrentUser.DeleteSubKeyTree(
+                    @"Software\Classes\Directory\shell\DwarfsGUI.Make", false);
+                Microsoft.Win32.Registry.CurrentUser.DeleteSubKeyTree(
+                    @"Software\Classes\Directory\shell\DwarfsGUI.Mount", false);
+                
+                // 删除文件夹背景右键菜单
+                Microsoft.Win32.Registry.CurrentUser.DeleteSubKeyTree(
+                    @"Software\Classes\Directory\Background\shell\DwarfsGUI.Make", false);
+                Microsoft.Win32.Registry.CurrentUser.DeleteSubKeyTree(
+                    @"Software\Classes\Directory\Background\shell\DwarfsGUI.Mount", false);
+
+                // 清理旧的二级菜单相关注册表（如果存在）
                 Microsoft.Win32.Registry.CurrentUser.DeleteSubKeyTree(
                     @"Software\Classes\*\shell\DwarfsGUI", false);
                 Microsoft.Win32.Registry.CurrentUser.DeleteSubKeyTree(
                     @"Software\Classes\Directory\shell\DwarfsGUI", false);
                 Microsoft.Win32.Registry.CurrentUser.DeleteSubKeyTree(
                     @"Software\Classes\Directory\Background\shell\DwarfsGUI", false);
+                Microsoft.Win32.Registry.CurrentUser.DeleteSubKeyTree(
+                    @"Software\Classes\DwarfsGUI.Shell", false);
+                Microsoft.Win32.Registry.CurrentUser.DeleteSubKeyTree(
+                    @"Software\Classes\DwarfsGUI", false);
 
                 lblContextMenuStatus.Text = "右键菜单已取消";
                 lblContextMenuStatus.ForeColor = Color.DimGray;

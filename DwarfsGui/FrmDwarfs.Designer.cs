@@ -28,6 +28,7 @@ namespace DwarfsGui
         /// </summary>
         private void InitializeComponent()
         {
+            System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(FrmDwarfs));
             tabControl = new TabControl();
             tabCreate = new TabPage();
             label15 = new Label();
@@ -773,10 +774,12 @@ namespace DwarfsGui
             AutoScaleMode = AutoScaleMode.Dpi;
             ClientSize = new Size(1048, 700);
             Controls.Add(splitContainer1);
+            Icon = (Icon)resources.GetObject("$this.Icon");
+            MaximizeBox = false;
+            MinimizeBox = false;
             Name = "FrmDwarfs";
             StartPosition = FormStartPosition.CenterScreen;
             Text = "Dwarfs镜像管理器";
-            TopMost = true;
             tabControl.ResumeLayout(false);
             tabCreate.ResumeLayout(false);
             tabCreate.PerformLayout();
