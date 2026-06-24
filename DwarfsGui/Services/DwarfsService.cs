@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Management;
 using System.Text;
+using System.Text.RegularExpressions;
 using DwarfsGui.Models;
 
 namespace DwarfsGui.Services;
@@ -31,34 +32,80 @@ public class DwarfsService
 
     public async Task<(bool Success, string Output)> CreateImageAsync(
         string inputPath, string outputPath, DwarfsSettings settings,
-        Action<string>? onOutput = null, CancellationToken ct = default)
+        Action<string>? onOutput = null, Action<int>? onProgress = null, CancellationToken ct = default)
     {
-        var args = new List<string>
-        {
-            "-i", $"\"{inputPath}\"",
-            "-o", $"\"{outputPath}\"",
-            "-l", settings.CompressionLevel.ToString()
-        };
+        var args = new List<string>();
+        string? inputListFile = null;
 
-        if (settings.Force)
-            args.Add("-f");
-
-        // 自定义压缩算法
-        if (!string.IsNullOrEmpty(settings.CompressionAlgorithm) &&
-            settings.CompressionAlgorithm != "zstd:level=22")
+        try
         {
-            args.Add("-C");
-            args.Add(settings.CompressionAlgorithm);
+            if (File.Exists(inputPath))
+            {
+                var fullFilePath = Path.GetFullPath(inputPath);
+                var rootDirectory = Path.GetDirectoryName(fullFilePath);
+                if (string.IsNullOrWhiteSpace(rootDirectory))
+                    return (false, $"无法确定单文件输入的根目录: {inputPath}");
+
+                var fileName = Path.GetFileName(fullFilePath);
+                inputListFile = Path.Combine(Path.GetTempPath(), $"dwarfs-input-{Guid.NewGuid():N}.txt");
+                await File.WriteAllTextAsync(inputListFile, fileName + Environment.NewLine, new UTF8Encoding(false), ct);
+
+                args.Add("-i");
+                args.Add($"\"{rootDirectory}\"");
+                args.Add("--input-list");
+                args.Add($"\"{inputListFile}\"");
+
+                onOutput?.Invoke($"检测到单文件输入，自动按父目录作为根目录处理: {fileName}");
+            }
+            else if (Directory.Exists(inputPath))
+            {
+                args.Add("-i");
+                args.Add($"\"{inputPath}\"");
+            }
+            else
+            {
+                return (false, $"输入路径不存在: {inputPath}");
+            }
+
+            args.Add("-o");
+            args.Add($"\"{outputPath}\"");
+            args.Add("-l");
+            args.Add(settings.CompressionLevel.ToString());
+            args.Add("--progress");
+            args.Add("simple");
+
+            if (settings.Force)
+                args.Add("-f");
+
+            // 自定义压缩算法
+            if (!string.IsNullOrEmpty(settings.CompressionAlgorithm) &&
+                settings.CompressionAlgorithm != "zstd:level=22")
+            {
+                args.Add("-C");
+                args.Add(settings.CompressionAlgorithm);
+            }
+
+            // 禁用去重（跳过文件哈希计算）
+            if (settings.DisableDedup)
+            {
+                args.Add("--file-hash");
+                args.Add("none");
+            }
+
+            return await RunCommandAsync(MkdwarfsPath, args, onOutput, onProgress, ct);
         }
-
-        // 禁用去重（跳过文件哈希计算）
-        if (settings.DisableDedup)
+        finally
         {
-            args.Add("--file-hash");
-            args.Add("none");
+            if (!string.IsNullOrWhiteSpace(inputListFile))
+            {
+                try
+                {
+                    if (File.Exists(inputListFile))
+                        File.Delete(inputListFile);
+                }
+                catch { }
+            }
         }
-
-        return await RunCommandAsync(MkdwarfsPath, args, onOutput, ct);
     }
 
     public async Task<(bool Success, string Output, Process? Process)> MountImageAsync(
@@ -149,7 +196,7 @@ public class DwarfsService
 
     public async Task<(bool Success, string Output)> ExtractImageAsync(
         string imagePath, string outputPath, DwarfsSettings settings,
-        Action<string>? onOutput = null, CancellationToken ct = default)
+        Action<string>? onOutput = null, Action<int>? onProgress = null, CancellationToken ct = default)
     {
         // 确保输出目录存在
         if (!Directory.Exists(outputPath))
@@ -159,6 +206,7 @@ public class DwarfsService
         {
             "-i", $"\"{imagePath}\"",
             "-o", $"\"{outputPath}\"",
+            "--stdout-progress",
             "-n", settings.ExtractWorkers.ToString(),
             "-s", settings.ExtractCacheSize
         };
@@ -166,7 +214,7 @@ public class DwarfsService
         if (settings.ContinueOnError)
             args.Add("--continue-on-error");
 
-        return await RunCommandAsync(ExtractPath, args, onOutput, ct);
+        return await RunCommandAsync(ExtractPath, args, onOutput, onProgress, ct);
     }
 
     public List<MountInfo> GetWinFspMountedImages()
@@ -411,13 +459,14 @@ public class DwarfsService
 
     private async Task<(bool Success, string Output)> RunCommandAsync(
         string exePath, List<string> args,
-        Action<string>? onOutput, CancellationToken ct)
+        Action<string>? onOutput, Action<int>? onProgress, CancellationToken ct, string? standardInput = null)
     {
         var psi = new ProcessStartInfo
         {
             FileName = exePath,
             Arguments = string.Join(" ", args),
             UseShellExecute = false,
+            RedirectStandardInput = standardInput is not null,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
             CreateNoWindow = true
@@ -430,20 +479,26 @@ public class DwarfsService
         {
             if (e.Data != null)
             {
-                lock (output) output.AppendLine(e.Data);
-                onOutput?.Invoke(e.Data);
+                HandleProcessLine(e.Data, output, onOutput, onProgress);
             }
         };
         process.ErrorDataReceived += (_, e) =>
         {
             if (e.Data != null)
             {
-                lock (output) output.AppendLine(e.Data);
-                onOutput?.Invoke(e.Data);
+                HandleProcessLine(e.Data, output, onOutput, onProgress);
             }
         };
 
         process.Start();
+
+        if (standardInput is not null)
+        {
+            await process.StandardInput.WriteLineAsync(standardInput);
+            await process.StandardInput.FlushAsync();
+            process.StandardInput.Close();
+        }
+
         process.BeginOutputReadLine();
         process.BeginErrorReadLine();
 
@@ -458,5 +513,44 @@ public class DwarfsService
         }
 
         return (process.ExitCode == 0, output.ToString());
+    }
+
+    private static void HandleProcessLine(
+        string line,
+        StringBuilder output,
+        Action<string>? onOutput,
+        Action<int>? onProgress)
+    {
+        var progress = TryParseProgressPercent(line);
+        if (progress.HasValue)
+            onProgress?.Invoke(progress.Value);
+
+        if (IsProgressOnlyLine(line))
+            return;
+
+        lock (output) output.AppendLine(line);
+        onOutput?.Invoke(line);
+    }
+
+    private static int? TryParseProgressPercent(string line)
+    {
+        var match = Regex.Match(line, @"(?<!\d)(100|[1-9]?\d)\s*%");
+        if (!match.Success)
+            return null;
+
+        if (int.TryParse(match.Groups[1].Value, out var value))
+            return Math.Clamp(value, 0, 100);
+
+        return null;
+    }
+
+    private static bool IsProgressOnlyLine(string line)
+    {
+        var trimmed = line.Trim();
+        if (trimmed.Length == 0)
+            return true;
+
+        return Regex.IsMatch(trimmed, @"^\d{1,3}%$") ||
+               (trimmed.Contains("==>") && trimmed.Contains("% done"));
     }
 }

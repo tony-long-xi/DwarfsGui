@@ -192,8 +192,71 @@ namespace DwarfsGui
                 Invoke(() => Log(message));
                 return;
             }
-            lstLog.Items.Insert(0, $"[{DateTime.Now:HH:mm:ss}] {message}");
-            //lstLog.ScrollToCaret();
+            lstLog.AppendText($"[{DateTime.Now:HH:mm:ss}] {message}\r\n");
+            lstLog.ScrollToCaret();
+        }
+
+        private async Task ShowBusyProgressAsync(ProgressBar progressBar, Label statusLabel, string statusText)
+        {
+            statusLabel.Text = statusText;
+            statusLabel.Visible = true;
+            progressBar.Style = ProgressBarStyle.Marquee;
+            progressBar.MarqueeAnimationSpeed = 30;
+            progressBar.Visible = true;
+            progressBar.BringToFront();
+            progressBar.Refresh();
+
+            // 先把进度条真正绘制出来，再进入后台等待过程。
+            await Task.Yield();
+        }
+
+        private void UpdateProgressValue(ProgressBar progressBar, Label statusLabel, string prefix, int value)
+        {
+            if (InvokeRequired)
+            {
+                BeginInvoke(() => UpdateProgressValue(progressBar, statusLabel, prefix, value));
+                return;
+            }
+
+            var clampedValue = Math.Clamp(value, 0, 100);
+            if (!progressBar.Visible)
+                progressBar.Visible = true;
+
+            statusLabel.Text = $"{prefix} {clampedValue}%";
+            statusLabel.Visible = true;
+
+            if (progressBar.Style != ProgressBarStyle.Blocks)
+            {
+                progressBar.MarqueeAnimationSpeed = 0;
+                progressBar.Style = ProgressBarStyle.Blocks;
+            }
+
+            progressBar.Minimum = 0;
+            progressBar.Maximum = 100;
+            progressBar.Value = clampedValue;
+            progressBar.Refresh();
+        }
+
+        private void HideBusyProgress(ProgressBar progressBar, Label statusLabel)
+        {
+            progressBar.MarqueeAnimationSpeed = 0;
+            progressBar.Style = ProgressBarStyle.Blocks;
+            progressBar.Value = 0;
+            progressBar.Visible = false;
+            statusLabel.Text = string.Empty;
+            statusLabel.Visible = false;
+        }
+
+        private void copyLogItem_Click(object sender, EventArgs e)
+        {
+            if (!string.IsNullOrEmpty(lstLog.SelectedText))
+            {
+                Clipboard.SetText(lstLog.SelectedText);
+            }
+            else
+            {
+                Clipboard.SetText(lstLog.Text);
+            }
         }
 
 
@@ -212,17 +275,23 @@ namespace DwarfsGui
                 MessageBox.Show("请指定输出文件。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
+            if (!System.IO.File.Exists(input) && !System.IO.Directory.Exists(input))
+            {
+                MessageBox.Show("输入路径不存在。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
 
             SaveSettings();
             btnCreate.Enabled = false;
-            progressCreate.Visible = true;
+            await ShowBusyProgressAsync(progressCreate, lblCreateProgressStatus, "压缩准备中...");
             Log($"开始制作镜像: {input} -> {output}");
 
             _cts = new CancellationTokenSource();
-            var (success, output_text) = await _dwarfsService.CreateImageAsync(input, output, _settings, Log, _cts.Token);
+            var (success, output_text) = await _dwarfsService.CreateImageAsync(
+                input, output, _settings, Log, value => UpdateProgressValue(progressCreate, lblCreateProgressStatus, "压缩中", value), _cts.Token);
 
             btnCreate.Enabled = true;
-            progressCreate.Visible = false;
+            HideBusyProgress(progressCreate, lblCreateProgressStatus);
 
             if (success)
             {
@@ -304,10 +373,47 @@ namespace DwarfsGui
             BrowseFolder(txtMountPoint);
         }
 
+        private bool TryBuildMountPoint(string mountDirectory, string virtualDirectoryName, out string? mountPoint, out string? errorMessage)
+        {
+            mountPoint = null;
+            errorMessage = null;
+
+            if (string.IsNullOrWhiteSpace(mountDirectory))
+                return true;
+
+            if (!Directory.Exists(mountDirectory))
+            {
+                errorMessage = "挂载点目录不存在。";
+                return false;
+            }
+
+            if (string.IsNullOrWhiteSpace(virtualDirectoryName))
+            {
+                errorMessage = "请填写虚拟目录名。";
+                return false;
+            }
+
+            if (virtualDirectoryName.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0)
+            {
+                errorMessage = "虚拟目录名包含非法字符。";
+                return false;
+            }
+
+            mountPoint = Path.Combine(mountDirectory, virtualDirectoryName);
+            if (Directory.Exists(mountPoint) || File.Exists(mountPoint))
+            {
+                errorMessage = $"虚拟目录已存在，请更换名称: {mountPoint}";
+                return false;
+            }
+
+            return true;
+        }
+
         private async void btnMount_Click(object sender, EventArgs e)
         {
             var image = txtMountImage.Text.Trim();
-            var mountPoint = txtMountPoint.Text.Trim();
+            var mountDirectory = txtMountPoint.Text.Trim();
+            var virtualDirectoryName = textMount.Text.Trim();
 
             if (string.IsNullOrEmpty(image))
             {
@@ -320,17 +426,25 @@ namespace DwarfsGui
                 return;
             }
 
+            if (!TryBuildMountPoint(mountDirectory, virtualDirectoryName, out var mountPoint, out var errorMessage))
+            {
+                MessageBox.Show(errorMessage, "提示", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
             SaveSettings();
             btnMount.Enabled = false;
-            progressMount.Visible = true;
-            Log($"开始挂载镜像: {image}");
+            await ShowBusyProgressAsync(progressMount, lblMountProgressStatus, "挂载中...");
+            Log(string.IsNullOrEmpty(mountPoint)
+                ? $"开始挂载镜像: {image} (自动挂载点)"
+                : $"开始挂载镜像: {image} -> {mountPoint}");
 
             _cts = new CancellationTokenSource();
             var (success, output_text, process) = await _dwarfsService.MountImageAsync(
-                image, string.IsNullOrEmpty(mountPoint) ? null : mountPoint, _settings, Log, _cts.Token);
+                image, mountPoint, _settings, Log, _cts.Token);
 
             btnMount.Enabled = true;
-            progressMount.Visible = false;
+            HideBusyProgress(progressMount, lblMountProgressStatus);
 
             if (success && process != null)
             {
@@ -474,14 +588,15 @@ namespace DwarfsGui
 
             SaveSettings();
             btnExtract.Enabled = false;
-            progressExtract.Visible = true;
+            await ShowBusyProgressAsync(progressExtract, lblExtractProgressStatus, "解压准备中...");
             Log($"开始提取镜像: {input} -> {output}");
 
             _cts = new CancellationTokenSource();
-            var (success, output_text) = await _dwarfsService.ExtractImageAsync(input, output, _settings, Log, _cts.Token);
+            var (success, output_text) = await _dwarfsService.ExtractImageAsync(
+                input, output, _settings, Log, value => UpdateProgressValue(progressExtract, lblExtractProgressStatus, "解压中", value), _cts.Token);
 
             btnExtract.Enabled = true;
-            progressExtract.Visible = false;
+            HideBusyProgress(progressExtract, lblExtractProgressStatus);
 
             if (success)
             {
